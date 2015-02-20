@@ -1,0 +1,6 @@
+"VertexLitGeneric"
+{
+	"$basetexture" "models/jeezy/gslayer/powerup/powerup_uv"
+	"$surfaceprop" "metal"
+	"$model" 1
+}
