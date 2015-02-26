@@ -69,6 +69,7 @@ function plyMeta:SendColoredMessage( messTable )
 end
 
 function plyMeta:SpectateRandomPlayer( )
+	if ( self:Alive( ) ) then return end
 	local shuffledPlayers = table.Shuffle( player.GetAll( ) )
 	for index, ply in ipairs( shuffledPlayers ) do
 		if ( ply ~= self and ply:Alive( ) ) then
@@ -91,6 +92,7 @@ function plyMeta:IncrementKillSpreeProgress( val )
 	if ( self.killSpreeCount == GMatch.Config.KillingSpreeAmount ) then
 		GMatch:BroadcastCenterMessage( self:Name( ) .. " is on a KILLING SPREE!", 5, nil, true, "GMatch_Lobster_LargeBold" )
 		self:SetGameStat( "KillingSprees", self:GetGameStat( "KillingSprees" ) + 1 )
+		self:SetPlayerVar( "OnKillingSpree", true, true )
 	elseif ( self.killSpreeCount > GMatch.Config.KillingSpreeAmount ) then
 		local highestKillSpree = self:GetGameStat( "HighestKillingSpree" )
 		if ( self.killSpreeCount > highestKillSpree ) then
@@ -108,11 +110,13 @@ function plyMeta:ResetKillSpreeProgress( )
 	if ( self.killSpreeCount > GMatch.Config.KillingSpreeAmount ) then
 		GMatch:BroadcastCenterMessage( self:Name( ) .. " is no longer on a killing spree.", 5, nil, true, "GMatch_Lobster_LargeBold" )
 	end
+	self:SetPlayerVar( "OnKillingSpree", false, true )
 	self.killSpreeCount = 0
 end
 
-function plyMeta:SetGameStat( stat, val )
+function plyMeta:SetGameStat( stat, val, initialSetting )
 	if ( self:IsBot( ) ) then return end
+	if ( !self.netDataFinishedSending and !initialSetting ) then return end
 	GMatch.GameData.PlayerStats = GMatch.GameData.PlayerStats or { }
 	local playerTable = GMatch.GameData.PlayerStats[ self:SteamID( ) ]
 	if not ( playerTable ) then return end
@@ -129,6 +133,7 @@ end
 
 function plyMeta:SaveGameStats( )
 	if ( self:IsBot( ) ) then return end
+	if not ( self.netDataFinishedSending ) then return end
 	GMatch.GameData.PlayerStats = GMatch.GameData.PlayerStats or { }
 	local playerTable = GMatch.GameData.PlayerStats[ self:SteamID( ) ]
 	if not ( playerTable ) then return end
@@ -141,4 +146,34 @@ function plyMeta:SaveGameStats( )
 	sql.Query( string.format( updateQuery, playerTable["Kills"], playerTable["Deaths"], playerTable["Suicides"], playerTable["Headshots"],
 	playerTable["KillingSprees"], playerTable["HighestKillingSpree"], playerTable["Revenges"], playerTable["Dominations"], playerTable["Wins"], self:SteamID64( ) ) )
 	self:DisplayNotify( "Your stats have been saved.", 5, "icon16/heart.png", nil, nil, true )
+end
+
+function plyMeta:SetPlayerVar( name, val, networked )
+	local tableIndex = self:SteamID( )
+	if ( self:IsBot( ) ) then tableIndex = self:UniqueID( ) end
+	GMatch.GameData.PlayerVars[tableIndex] = GMatch.GameData.PlayerVars[tableIndex] or { }
+	GMatch.GameData.PlayerVars[tableIndex][name] = val
+	if not ( networked ) then return end
+	GMatch.GameData.NetworkedPlayerVars = GMatch.GameData.NetworkedPlayerVars or { }
+	GMatch.GameData.NetworkedPlayerVars[tableIndex] = GMatch.GameData.NetworkedPlayerVars[tableIndex] or { }
+	GMatch.GameData.NetworkedPlayerVars[tableIndex][ name ] = val
+	local valType = type( val )
+	if ( valType == "Player" or valType == "Weapon" ) then valType = "Entity" end
+	if not ( GMatch.PlayerVarTypes[ valType ] ) then ErrorNoHalt( "Invalid PlayerVar type defined.\n" ) return end
+	local varFunc = GMatch.PlayerVarTypes[ valType ]
+	net.Start( "GMatch:ManipulatePlayerVars" )
+		net.WriteUInt( NET_PLAYERVARS_SEND, 16 )
+		net.WriteString( tableIndex )
+		net.WriteString( name )
+		net.WriteString( valType )
+		varFunc( val )
+	net.Broadcast( )
+end
+
+function plyMeta:InitiateGameTimer( )
+	if ( timer.Exists( "GMatch:OngoingRound" ) ) then
+		GMatch:AlterTimerLength( timer.TimeLeft( "GMatch:OngoingRound" ), GMatch.GameData.RoundLength, self )
+	elseif ( timer.Exists( "GMatch:Intermission" ) ) then
+		GMatch:AlterTimerLength( timer.TimeLeft( "GMatch:Intermission" ), GMatch.GameData.IntermissionLength, self )
+	end
 end

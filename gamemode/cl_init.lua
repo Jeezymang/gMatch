@@ -10,7 +10,7 @@ GMatch.Config = GMatch.Config or { }
 --------------------Client Tables
 GMatch.GameData = GMatch.GameData or { }
 GMatch.GameData.GameVars = GMatch.GameData.GameVars or { }
-
+GMatch.GameData.PlayerVars = GMatch.GameData.PlayerVars or { }
 --------------------------------------------------------------------------------------
 --------------------Recursively Include Client Files
 function GMatch:IncludeClientFiles( dir )

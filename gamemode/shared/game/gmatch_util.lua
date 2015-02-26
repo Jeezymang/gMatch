@@ -62,6 +62,26 @@ function colorMeta:ToVector( )
 	return Vector( self.r / 255, self.g / 255, self.b / 255 )
 end
 
+function colorMeta:Lighten( r, g, b )
+    local r, g, b = r, g, b
+    if not ( g ) then g = r end
+    if not ( b ) then b = g end
+    local red, green, blue = math.Clamp( self.r + r, 0, 255 ), math.Clamp( self.g + g, 0, 255 ), math.Clamp( self.b + b, 0, 255 )
+    return ( Color( red, green, blue, self.a ) )
+end
+
+function colorMeta:Darken( r, g, b )
+    local r, g, b = r, g, b
+    if not ( g ) then g = r end
+    if not ( b ) then b = g end
+    local red, green, blue = math.Clamp( self.r - r, 0, 255 ), math.Clamp( self.g - g, 0, 255 ), math.Clamp( self.b - b, 0, 255 )
+    return ( Color( red, green, blue, self.a ) )
+end
+
+function colorMeta:GetBrightness( )
+    return ( ( self.r + self.b + self.g ) / 3 )
+end
+
 function vectorMeta:ToColor( )
 	return ( Color( self.x * 255, self.y * 255, self.z * 255 ) )
 end
@@ -85,4 +105,35 @@ function plyMeta:GetGameStat( stat )
         return ( GMatch.GameData.PlayerStats[self:SteamID( )][stat] or 0 )
     end
 end
-    
+
+function plyMeta:GetPlayerVar( name, fallback )
+    local tableIndex = self:SteamID( )
+    if ( self:IsBot( ) ) then tableIndex = self:UniqueID( ) end
+    GMatch.GameData.PlayerVars[ tableIndex ] = GMatch.GameData.PlayerVars[ tableIndex ] or { }
+    local returnValue = fallback
+    if ( GMatch.GameData.PlayerVars[ tableIndex ][ name ] ) then
+        returnValue = GMatch.GameData.PlayerVars[ tableIndex ][ name ]
+    end
+    return ( returnValue )
+end
+
+if not ( plyMeta.oldUniqueID ) then
+    plyMeta.oldUniqueID = plyMeta.UniqueID
+end
+
+function plyMeta:UniqueID( )
+    if not ( self.cachedUID ) then
+        self.cachedUID = self:oldUniqueID( )
+        return ( self.cachedUID )
+    else
+        return ( self.cachedUID )
+    end
+end
+
+function GMatch:IsRoundActive( )
+    return ( self:GetGameVar( "RoundActive", false ) )
+end
+
+function GMatch:IsIntermissionActive( )
+    return ( self:GetGameVar( "IntermissionActive", false ) )
+end

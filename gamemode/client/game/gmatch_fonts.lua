@@ -29,6 +29,13 @@ surface.CreateFont( "GMatch_Lobster_MediumBold", {
 	weight = 750
 } )
 
+surface.CreateFont( "GMatch_Lobster_MediumBold_S", {
+	font = "Lobster", 
+	size = ScreenScale( 11 ), 
+	weight = 750,
+	blursize = 4
+} )
+
 surface.CreateFont( "GMatch_Lobster_SmallBold", {
 	font = "Lobster", 
 	size = ScreenScale( 10 ), 
@@ -39,4 +46,16 @@ surface.CreateFont( "GMatch_Lobster_Small", {
 	font = "Lobster", 
 	size = ScreenScale( 10 ), 
 	weight = 500
+} )
+
+surface.CreateFont( "GMatch_Lobster_3D2DMediumBold", {
+	font = "Lobster", 
+	size = 35,
+	weight = 750
+} )
+
+surface.CreateFont( "GMatch_Lobster_3D2DSmallBold", {
+	font = "Lobster", 
+	size = 25,
+	weight = 750
 } )

@@ -47,7 +47,7 @@ end
 function PLAYER:Spawn()
 	self.Player:SetupHands( )
 	local playerColor = team.GetColor( self.Player:Team( ) ):ToVector( )
-	local overrideColor = hook.Call( "OnPlayerSetColor", GM, self.Player )
+	local overrideColor = hook.Call( "OnPlayerSetColor", GAMEMODE, self.Player )
 	if ( overrideColor ) then playerColor = overrideColor:ToVector( ) end
 	self.Player:SetPlayerColor( playerColor )
 end
@@ -62,7 +62,7 @@ function PLAYER:Loadout()
 	local weaponLoadout = GMatch.Config.FallbackLoadout
 	local gameLoadout = GMatch.Config.DefaultSpawnWeapons or { }
 	if ( #gameLoadout > 0 ) then weaponLoadout = gameLoadout end
-	local overrideWeapons = hook.Call( "OnWeaponLoadout", GM, self.Player, weaponLoadout ) or { }
+	local overrideWeapons = hook.Call( "OnWeaponLoadout", GAMEMODE, self.Player, weaponLoadout ) or { }
 	if ( #overrideWeapons > 0 ) then weaponLoadout = overrideWeapons end
 	for index, wep in ipairs ( weaponLoadout ) do
 		self.Player:Give( wep )
@@ -82,7 +82,7 @@ function PLAYER:SetModel( )
 		if ( string.len( mdlNum ) == 1 ) then mdlNum = "0" .. mdlNum end
 		chosenModel = player_manager.TranslatePlayerModel( "female" .. mdlNum )
 	end
-	local overrideModel = hook.Call( "OnPlayerSetModel", GM, self.Player, chosenModel )
+	local overrideModel = hook.Call( "OnPlayerSetModel", GAMEMODE, self.Player, chosenModel )
 	if ( overrideModel ) then chosenModel = overrideModel end
 	self.Player:SetModel( chosenModel )
 end

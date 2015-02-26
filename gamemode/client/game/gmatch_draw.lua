@@ -30,3 +30,39 @@ function draw.HorizontalCutTexturedRect( x, y, w, h, mat, col, percent )
 		draw.TexturedRect( x, y, w, h, mat, col )
 	render.SetScissorRect( 0, 0, 0, 0, false )
 end
+
+function draw.TextSpecial( text, font, x, y, color, scale, ang )
+	render.PushFilterMag( TEXFILTER.ANISOTROPIC )
+	render.PushFilterMin( TEXFILTER.ANISOTROPIC )
+	surface.SetFont( font )
+	surface.SetTextColor( color )
+	surface.SetTextPos( 0, 0 )
+	local txtW, txtH = surface.GetTextSize( text )
+	local txtMatrix = Matrix( )
+	local x, y = x, y
+	if ( scale and isvector( scale ) ) then
+		txtMatrix:Scale( scale )
+		txtW = txtW * scale[1]
+		txtH = txtH * scale[2]
+	elseif ( scale and isnumber( scale ) ) then
+		txtMatrix:Scale( Vector( scale, scale, scale ) )
+		txtW = txtW * scale
+		txtH = txtH * scale
+	end
+	if ( scale and !ang ) then
+		x, y = x - ( txtW * 0.5 ), y - ( txtH * 0.5 )
+	end
+	if ( ang ) then
+		local rad = -math.rad( ang )
+		local halvedPi = math.pi / 2
+		x = x - ( math.sin( rad + halvedPi) * txtW / 2 + math.sin( rad ) * txtH / 2 )
+		y = y - ( math.cos( rad + halvedPi ) * txtW / 2 + math.cos( rad ) * txtH / 2 )
+		txtMatrix:SetAngles( Angle( 0, ang, 0 ) )
+	end
+	txtMatrix:SetTranslation( Vector( x, y, 0 ) )
+	cam.PushModelMatrix( txtMatrix )
+		surface.DrawText( text )
+	cam.PopModelMatrix( )
+	render.PopFilterMag( )
+	render.PopFilterMin( )
+end

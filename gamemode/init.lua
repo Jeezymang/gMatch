@@ -25,6 +25,8 @@ GMatch.GameVarTypes = {
 	["Angle"] = function( val ) net.WriteAngle( val ) end,
 	["Entity"] = function( val ) net.WriteEntity( val ) end
 }
+GMatch.GameData.PlayerVars = GMatch.GameData.PlayerVars or { }
+GMatch.PlayerVarTypes = table.Copy( GMatch.GameVarTypes )
 
 -------------------------------------------------
 ------------------Recursively Add Sounds

@@ -8,6 +8,10 @@ net.Receive( "GMatch:ManipulateTimer", function( len )
 		local roundLength = net.ReadUInt( 32 )
 		GMatch.GameData.RoundLength = roundLength
 		GMatch.GameData.TimerToggled = toggleStatus
+	elseif ( opType == NET_TIMER_NETDATATIME ) then
+		local estimatedTime = net.ReadUInt( 32 )
+		GMatch.GameData.NETDataEstimatedTime = estimatedTime
+		GMatch.GameData.NETDataEstimatedEndTime = CurTime( ) + estimatedTime
 	end
 end )
 
@@ -60,6 +64,20 @@ net.Receive( "GMatch:ManipulateGameVars", function( len )
 		local varFunc = typeWhitelist[ varType ]
 		local varValue = varFunc( )
 		GMatch.GameData.GameVars[ varName ] = varValue
+	end
+end )
+
+net.Receive( "GMatch:ManipulatePlayerVars", function( len )
+	local opType = net.ReadUInt( 16 )
+	if ( opType == NET_PLAYERVARS_SEND ) then
+		local steamID = net.ReadString( )
+		local varName = net.ReadString( )
+		local varType = net.ReadString( )
+		if not ( typeWhitelist[ varType ] ) then ErrorNoHalt( "Invalid PlayerVar type specified." ) return end
+		local varFunc = typeWhitelist[ varType ]
+		local varValue = varFunc( )
+		GMatch.GameData.PlayerVars[ steamID ] = GMatch.GameData.PlayerVars[ steamID ] or { }
+		GMatch.GameData.PlayerVars[ steamID ][ varName ] = varValue
 	end
 end )
 
@@ -163,6 +181,37 @@ net.Receive( "GMatch:ManipulateMisc", function( len )
 				particle:SetStartLength( selTbl.selStartLength )
 			end
 		end
+	elseif ( opType == NET_MISC_TRIGGERENDGAMEMUSIC ) then
+		local tblIndex = net.ReadUInt( 16 )
+		local musicTable = GMatch.Config.EndRoundMusicURLs[tblIndex]
+		LocalPlayer( ):DisplayNotify( "Playing: " .. musicTable.name , 4, "icon16/music.png", Color( 255, 255, 255 ), nil, true, nil )
+		sound.PlayURL( musicTable.url, "mono", function( soundPatch ) 
+			if ( IsValid( soundPatch ) ) then
+				soundPatch:SetPos( LocalPlayer( ):GetPos( ) )
+				soundPatch:Play( )
+				if not ( system.HasFocus( ) ) then soundPatch:SetVolume( 0 ) end
+				local timerTickCount = 0
+				timer.Create( "EndRoundMusicManage", 1, 40, function( ) 
+					if not ( IsValid( soundPatch ) ) then 
+						soundPatch = nil 
+						timer.Destroy( "EndRoundMusicManage" )
+						return 
+					end
+					if not ( system.HasFocus( ) ) then
+						soundPatch:SetVolume( 0 )
+					else
+						soundPatch:SetVolume( 1 )
+					end
+					timerTickCount = timerTickCount + 1
+					if( timerTickCount >= 39 ) then
+						soundPatch:Stop( )
+						soundPatch = netil
+					end
+				end )
+			else
+				LocalPlayer( ):ChatPrint( "Unable to play URL." )
+			end
+		end )
 	end
 end )
 

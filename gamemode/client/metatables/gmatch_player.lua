@@ -10,6 +10,7 @@ function plyMeta:PrintCenterMessage( txt, length, col, isRainbow, font )
 		isRainbow = isRainbow,
 		font = font
 	} )
+	MsgC( col or Color( 145, 145, 225 ), txt .. "\n" )
 end
 
 function plyMeta:DisplayNotify( txt, length, iconPath, textColor, panelColor, isRainbow, font )
@@ -24,4 +25,5 @@ function plyMeta:DisplayNotify( txt, length, iconPath, textColor, panelColor, is
 		isRainbow = isRainbow,
 		font = font
 	} )
+	MsgC( panelColor or Color( 145, 145, 225 ), txt .. "\n" )
 end

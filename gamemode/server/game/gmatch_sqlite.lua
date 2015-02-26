@@ -91,7 +91,16 @@ function GMatch:RetrievePlayerStats( ply )
 		}
 		GMatch:BroadcastColoredMessage( { Color( 175, 175, 255 ), ply:Name( ), Color( 255, 255, 255 ), " has joined for the first time." } )
 	end
-	for stat, val in pairs ( GMatch.GameData.PlayerStats[ ply:SteamID( ) ] ) do
-		ply:SetGameStat( stat, val )
-	end
+	return ( GMatch.GameData.PlayerStats[ ply:SteamID( ) ] )
+end
+
+function GMatch:RetrieveMapEntities( )
+	local selectQuery = [[
+	SELECT *
+	FROM %s
+	WHERE map = %s AND gamemode = %s;
+	]]
+	local persistEntities = sql.Query( string.format( selectQuery, SQLStr( "gmatch_persist" ), SQLStr( game.GetMap( ) ), SQLStr( gMatchGameFolder ) ) )
+	local respawnEntities = sql.Query( string.format( selectQuery, SQLStr( "gmatch_respawnable" ), SQLStr( game.GetMap( ) ), SQLStr( gMatchGameFolder ) ) )
+	return persistEntities, respawnEntities
 end

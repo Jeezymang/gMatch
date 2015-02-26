@@ -11,10 +11,7 @@ function GM:OnReloaded( )
 end
 
 hook.Add( "InitPostEntity", "GMatch_InitPostEntity", function( )
-	net.Start( "GMatch:ManipulateGameVars" )
-		net.WriteUInt( NET_VARS_REQUEST, 16 )
-	net.SendToServer( )
-	net.Start( "GMatch:ManipulatetEAMS" )
-		net.WriteUInt( NET_TEAMS_REQUEST, 16 )
+	net.Start( "GMatch:ManipulateMisc" )
+		net.WriteUInt( NET_MISC_INITIALIZEPLAYER, 16 )
 	net.SendToServer( )
 end )

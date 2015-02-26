@@ -1,5 +1,6 @@
 GM = GM or GAMEMODE
 function GM:PostGamemodeLoaded( )
+	GM = GM or GAMEMODE -- Ensure the GM table exists when the gamemode is loaded.
 	GMatch:SearchForPlayers( )
 	GMatch:IncludeAllFiles( gMatchGameFolder .. "/gamemode/")
 	if ( GMatch.Config.AutoResourceContent ) then
@@ -13,63 +14,18 @@ function GM:PostGamemodeLoaded( )
 end
 
 function GM:InitPostEntity( )
-	local selectQuery = [[
-	SELECT *
-	FROM %s
-	WHERE map = %s AND gamemode = %s;
-	]]
-	local resultSet = sql.Query( string.format( selectQuery, SQLStr( "gmatch_persist" ), SQLStr( game.GetMap( ) ), SQLStr( gMatchGameFolder ) ) )
-	if ( resultSet ) then
-		for index, data in ipairs ( resultSet ) do
-			local persistEnt = ents.Create( data.class )
-			if ( data.class == "prop_physics" ) then
-				persistEnt:SetModel( data.model )
-			end
-			persistEnt:Spawn( )
-			persistEnt:Activate( )
-			persistEnt.persistID = data.id
-			local entPos = Vector( tonumber( data.x ), tonumber( data.y ), tonumber( data.z ) )
-			local entAng = Angle( tonumber( data.pitch ), tonumber( data.yaw ), tonumber( data.roll ) )
-			persistEnt:SetPos( entPos )
-			persistEnt:SetAngles( entAng )
-			local physObj = persistEnt:GetPhysicsObject( )
-			if ( physObj:IsValid( ) and tobool( tonumber( data.frozen ) ) ) then physObj:EnableMotion( false ) end
-		end
+	local persistEntities, respawnEntities = GMatch:RetrieveMapEntities( )
+	if ( persistEntities ) then
+		GMatch:SpawnPersistentEntities( persistEntities )
 	end
-	resultSet = sql.Query( string.format( selectQuery, SQLStr( "gmatch_respawnable" ), SQLStr( game.GetMap( ) ), SQLStr( gMatchGameFolder ) ) )
-	if ( resultSet ) then
-		for index, data in ipairs ( resultSet ) do
-			GMatch.GameData.RespawningEntities = GMatch.GameData.RespawningEntities or { }
-			GMatch.GameData.RespawningEntities[tonumber( data.id )] = {
-				ent = nil,
-				class = data.class,
-				model = data.model,
-				pos = Vector( tonumber( data.x ), tonumber( data.y ), tonumber( data.z ) ),
-				ang = Angle( tonumber( data.pitch ), tonumber( data.yaw ), tonumber( data.roll ) ),
-				frozen = tobool( tonumber( data.frozen ) )
-			}
-		end
+	if ( respawnEntities ) then
+		GMatch:SpawnRespawnableEntities( respawnEntities )
 	end
-	timer.Create( "GMatch:EntityRespawningTimer", GMatch.Config.EntityRespawnInterval, 0, function( ) 
-		for id, entTbl in pairs ( GMatch.GameData.RespawningEntities or { } ) do
-			if ( IsValid( entTbl.ent ) ) then continue end
-			local respawnEnt = ents.Create( entTbl.class )
-			if ( entTbl.class == "prop_physics" ) then
-				respawnEnt:SetModel( entTbl.model )
-			end
-			respawnEnt:Spawn( )
-			respawnEnt:Activate( )
-			respawnEnt.respawnID = id
-			respawnEnt:SetPos( entTbl.pos )
-			respawnEnt:SetAngles( entTbl.ang )
-			local physObj = respawnEnt:GetPhysicsObject( )
-			if ( physObj:IsValid( ) and entTbl.frozen ) then physObj:EnableMotion( false ) end
-			GMatch.GameData.RespawningEntities[id].ent = respawnEnt
-		end
-	end )
+	GMatch:StartRespawningEntityTimer( GMatch.Config.EntityRespawnInterval, GMatch.Config.EntityRespawnChance )
 end
 
 function GM:OnReloaded( )
+	self.BaseClass:OnReloaded( )
 	if not ( gMatchGameFolder == "gmatch" ) then
 		GMatch:IncludeAllFiles( gMatchGameFolder .. "/gamemode/" )
 	end
@@ -77,7 +33,6 @@ end
 
 function GM:PlayerInitialSpawn( ply )
 	self.BaseClass:PlayerInitialSpawn( ply )
-	--GMatch:RetrievePlayerStats( ply )
 	local entIndex = ply:EntIndex( )
 	timer.Create( "GMatch:StatSavingTimer_" .. entIndex, GMatch.Config.StatSavingInterval, 1, function( )
 		if not ( IsValid( ply ) ) then
@@ -87,12 +42,19 @@ function GM:PlayerInitialSpawn( ply )
 			ply:SaveGameStats( )
 		end
 	end )
+	if not ( ply:IsBot( ) ) then
+		ply:SetTeam( 0 )
+	else
+		local assignTeam = hook.Call( "OnPlayerAssignTeam", GAMEMODE, ply )
+		if ( assignTeam ) then ply:SetTeam( assignTeam )
+		else ply:SetTeam( 1001 ) end
+	end
 end
 
-util.AddNetworkString( "SendFuckingPlayerClass" )
 function GM:PlayerSpawn( ply )
 	player_manager.SetPlayerClass( ply, "gmatch_player_class" )
 	self.BaseClass:PlayerSpawn( ply )
+	ply.wasHeadshotted = false
 	if ( ply:GetObserverMode( ) == OBS_MODE_CHASE ) then
 		ply:UnSpectate( )
 		ply.spectatingPlayer = nil
@@ -102,7 +64,7 @@ function GM:PlayerSpawn( ply )
 end
 
 function GM:PlayerSelectSpawn( ply, spawnAttempts )
-	local overrideSpawn = hook.Call( "OnSelectSpawnPoint", GM, ply )
+	local overrideSpawn = hook.Call( "OnSelectSpawnPoint", GAMEMODE, ply )
 	if ( overrideSpawn ) then
 		local posOffset = Vector( math.random( -256, 256 ), math.random( -256, 256 ), 0 )
 		local newSpawn = overrideSpawn + posOffset
@@ -134,8 +96,14 @@ function GM:PlayerDeath( victim, inflictor, attacker, secondPass )
 		attacker:IncrementKillSpreeProgress( 1 )
 		victim:SetGameStat( "Deaths", victim:GetGameStat( "Deaths" ) + 1 )
 	end
+	if ( IsValid( victim ) and GMatch.Config.RespawnAmount and GMatch:IsRoundActive( ) and !secondPass ) then
+		GMatch.GameData.RespawnTimes = GMatch.GameData.RespawnTimes or { }
+		GMatch.GameData.RespawnTimes[ victim:EntIndex( ) ] = GMatch.GameData.RespawnTimes[ victim:EntIndex( ) ] or 0
+		victim:SetPlayerVar( "RespawnCount", GMatch.GameData.RespawnTimes[ victim:EntIndex( ) ], true )
+		GMatch.GameData.RespawnTimes[ victim:EntIndex( ) ] = GMatch.GameData.RespawnTimes[ victim:EntIndex( ) ] + 1
+	end
 	local respawnTime = GMatch.Config.RespawnTime
-	local overrideTime = hook.Call( "OnSetRespawnTimer", GM, victim, attacker )
+	local overrideTime = hook.Call( "OnSetRespawnTimer", GAMEMODE, victim, attacker )
 	if ( overrideTime ) then respawnTime = overrideTime end
 	victim.timeUntilRespawn = CurTime( ) + respawnTime
 	net.Start( "GMatch:ManipulatePlayer" )
@@ -164,8 +132,14 @@ function GM:PlayerDeath( victim, inflictor, attacker, secondPass )
 end
 
 function GM:PlayerDeathThink( ply )
+	local canRespawn = true
+	if ( GMatch.Config.RespawnAmount and GMatch:IsRoundActive( ) ) then
+		GMatch.GameData.RespawnTimes = GMatch.GameData.RespawnTimes or { }
+		GMatch.GameData.RespawnTimes[ ply:EntIndex( ) ] = GMatch.GameData.RespawnTimes[ ply:EntIndex( ) ] or 0
+		if ( GMatch.Config.RespawnAmount < GMatch.GameData.RespawnTimes[ ply:EntIndex( ) ] ) then canRespawn = false end
+	end
 	ply.timeUntilRespawn = ply.timeUntilRespawn or ( CurTime( ) + GMatch.Config.RespawnTime )
-	if ( ply.timeUntilRespawn > CurTime( ) ) then
+	if ( ply.timeUntilRespawn > CurTime( ) or !canRespawn ) then
 		return false
 	else
 		if ( ply:GetObserverMode( ) == OBS_MODE_CHASE ) then
@@ -186,7 +160,8 @@ function GM:ScalePlayerDamage( ply, hitGroup, dmgInfo, secondPass )
 		local attacker = dmgInfo:GetAttacker( )
 		if ( IsValid( attacker ) and attacker:IsPlayer( ) ) then
 			local hpLeft = ( ply:Health( ) + ply:Armor( ) ) - dmgInfo:GetDamage( )
-			if ( hpLeft <= 0 ) then
+			if ( hpLeft <= 0 and !ply.wasHeadshotted ) then
+				ply.wasHeadshotted = true
 				attacker:SetGameStat( "Headshots", attacker:GetGameStat( "Headshots" ) + 1 )
 				GMatch:BroadcastCenterMessage( attacker:Name( ) .. " has blew " .. ply:Name( ) .. "'s head off!", 5, nil, true, "GMatch_Lobster_LargeBold" )
 			end 
@@ -195,6 +170,12 @@ function GM:ScalePlayerDamage( ply, hitGroup, dmgInfo, secondPass )
 end
 
 function GM:PlayerDisconnected( ply )
+	local tableIndex = ply:SteamID( )
+	if ( ply:IsBot( ) ) then tableIndex = ply:UniqueID( ) end
+	GMatch.GameData.PlayerVars[ tableIndex ] = nil
+	GMatch.GameData.NetworkedPlayerVars = GMatch.GameData.NetworkedPlayerVars or { }
+	GMatch.GameData.NetworkedPlayerVars[ tableIndex ] = nil
+	ply:SaveGameStats( )
 	timer.Simple( 0.1, function( ) // Welp, this is hacky.
 		if ( timer.Exists( "GMatch:OngoingRound" ) ) then
 			if ( #player.GetAll( ) == 0 ) then
@@ -202,4 +183,12 @@ function GM:PlayerDisconnected( ply )
 			end
 		end
 	end )
+end
+
+function GM:KeyPress( ply, key )
+	if ( key == IN_ATTACK and !ply:Alive( ) ) then
+		if ( #player.GetAll( ) > 1 ) then
+			ply:SpectateRandomPlayer( )
+		end
+	end
 end

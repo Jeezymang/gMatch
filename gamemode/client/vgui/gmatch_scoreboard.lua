@@ -4,6 +4,7 @@ function SCOREBOARD:Init( )
 	self:SetSize( ScrW( ) * 0.6, ScrH( ) * 0.7 )
 	self:Center( )
 	self:CreatePlayerList( )
+	self:GenerateLabels( )
 	self:GeneratePlayerList( )
 	self:MakePopup( )
 end
@@ -22,16 +23,33 @@ end
 
 function SCOREBOARD:GeneratePlayerList( )
 	self.dIconLayout:Clear( )
-	local sortedPlayerList = { }
-	for index, ply in ipairs ( player.GetAll( ) ) do
-		table.insert( sortedPlayerList, { ply = ply, plyTeam = ply:Team( ) } )
-	end
-	table.SortByMember( sortedPlayerList, "plyTeam" )
+	local sortedPlayerList = GMatch.Config.ScoreboardSort( )
 	for index, plyRow in ipairs ( sortedPlayerList ) do
 		local playerRow = self.dIconLayout:Add( "gMatch_ScoreboardPlayerRow" )
+		playerRow.scoreboardPanel = self
 		playerRow.dIconLayout = self.dIconLayout
 		playerRow:SetPlayerEntity( plyRow.ply )
 	end 
+end
+
+function SCOREBOARD:GenerateLabels( )
+	self.rowLabels = { }
+	local listX, listY = self.dScrollPanel:GetPos( )
+	if not ( GMatch.Config.ScoreboardLabels ) then return end
+	for index, lblData in ipairs( GMatch.Config.ScoreboardLabels ) do
+		local dLabel = vgui.Create( "DLabel", self )
+		local labelFont = lblData.labelFont or "GMatch_Lobster_SmallBold"
+		local labelColor = lblData.labelColor or Color( 255, 255, 255 )
+		dLabel:SetFont( labelFont )
+		dLabel:SetTextColor( labelColor )
+		dLabel:SetText( lblData.text )
+		dLabel:SizeToContents( )
+		local labelW, labelH = dLabel:GetSize( )
+		local labelY = listY - labelH
+		local labelX = ( self:GetWide( ) * lblData.offset ) - ( labelW * 0.5 )
+		dLabel:SetPos( listX + labelX, labelY )
+		self.rowLabels[index] = dLabel
+	end
 end
 
 function SCOREBOARD:Paint( w, h )
@@ -41,10 +59,14 @@ function SCOREBOARD:Paint( w, h )
 	self:DrawBlurredRect( 5, 4 )
 	draw.SimpleText( GetHostName( ), "GMatch_Lobster_MediumBold", w * 0.5, h * 0.04, Color( 255, 255, 255 ), TEXT_ALIGN_CENTER )
 	draw.SimpleText( gMatchGameName, "GMatch_Lobster_SmallBold", w * 0.5, h * 0.075, Color( 255, 255, 255 ), TEXT_ALIGN_CENTER )
-	draw.SimpleText( "Name", "GMatch_Lobster_SmallBold", w * 0.125, h * 0.15, Color( 255, 255, 255 ), TEXT_ALIGN_LEFT )
-	draw.SimpleText( "Kills", "GMatch_Lobster_SmallBold", w * 0.56, h * 0.15, Color( 255, 255, 255 ), TEXT_ALIGN_LEFT )
-	draw.SimpleText( "Deaths", "GMatch_Lobster_SmallBold", w * 0.665, h * 0.15, Color( 255, 255, 255 ), TEXT_ALIGN_LEFT )
-	draw.SimpleText( "Ping", "GMatch_Lobster_SmallBold", w * 0.79, h * 0.15, Color( 255, 255, 255 ), TEXT_ALIGN_LEFT )
+end
+
+function SCOREBOARD:Think( )
+	for index, lbl in ipairs( self.rowLabels ) do
+		if ( GMatch.Config.ScoreboardLabels[index] and GMatch.Config.ScoreboardLabels[index].labelRainbow ) then
+			lbl:SetTextColor( util.RainbowStrobe( 2 ) )
+		end
+	end
 end
 
 vgui.Register( "gMatch_Scoreboard", SCOREBOARD, "Panel" )
@@ -58,6 +80,33 @@ function SCOREBOARD_PLAYER_ROW:Init( )
 	self.textColor = Color( 255, 255, 255 )
 end
 
+function SCOREBOARD_PLAYER_ROW:GenerateLabels( )
+	self.playerRowLabels = { }
+	if not ( GMatch.Config.ScoreboardLabels ) then return end
+	for index, lblData in ipairs( GMatch.Config.ScoreboardLabels ) do
+		local dLabel = vgui.Create( "DLabel", self )
+		local valueFont = lblData.valueFont or "GMatch_Lobster_SmallBold"
+		local valueColor = lblData.valueColor or Color( 255, 255, 255 )
+		local rowColor = GMatch.Config.ScoreboardPlayerRowColor( self.playerEntity )
+		rowColor = rowColor:Darken( 100 )
+		dLabel:SetFont( valueFont )
+		dLabel:SetTextColor( valueColor )
+		dLabel:SetText( lblData.valueFunc( self.playerEntity ) )
+		dLabel:SizeToContents( )
+		local labelW, labelH = dLabel:GetSize( )
+		local parentW = self.scoreboardPanel.rowLabels[index]:GetWide( )
+		local labelX = ( self.scoreboardPanel:GetWide( ) * lblData.offset )
+		if ( lblData.isCentered ) then
+			labelX = labelX - ( labelW * 0.5 )
+		else
+			labelX = labelX - ( parentW * 0.5 )
+		end
+		local labelY = ( self:GetTall( ) * 0.5 ) - ( labelH * 0.5 )
+		dLabel:SetPos( labelX, labelY )
+		self.playerRowLabels[index] = dLabel
+	end
+end
+
 function SCOREBOARD_PLAYER_ROW:Paint( w, h )
 	local rowName, rowKills, rowDeaths, rowPing, rowColor = "Unknown", 0, 0, 0, Color( 255, 255, 255 )
 	local rowColor = Color( 255, 255, 255 )
@@ -66,7 +115,7 @@ function SCOREBOARD_PLAYER_ROW:Paint( w, h )
 		rowKills = self.playerEntity:Frags( )
 		rowDeaths = self.playerEntity:Deaths( )
 		rowPing = self.playerEntity:Ping( )
-		rowColor = team.GetColor( self.playerEntity:Team( ) )
+		rowColor = GMatch.Config.ScoreboardPlayerRowColor( self.playerEntity )
 	end
 	rowColor = Color( rowColor.r - 45, rowColor.g - 45, rowColor.b - 45 )
 	surface.SetFont( "GMatch_Lobster_Small" )
@@ -75,10 +124,6 @@ function SCOREBOARD_PLAYER_ROW:Paint( w, h )
 	if ( self.isExpanded ) then textYPos = textYPos - 45 end
 	self.textColor = Color( 255, 255, 255 )
 	draw.RoundedBox( 4, 0, 0, w, h, rowColor )
-	draw.SimpleText( rowName, "GMatch_Lobster_SmallBold", w * 0.025, textYPos, self.textColor, TEXT_ALIGN_LEFT )
-	draw.SimpleText( rowKills, "GMatch_Lobster_SmallBold", w * 0.6, textYPos, self.textColor, TEXT_ALIGN_CENTER )
-	draw.SimpleText( rowDeaths, "GMatch_Lobster_SmallBold", w * 0.75, textYPos, self.textColor, TEXT_ALIGN_CENTER )
-	draw.SimpleText( rowPing, "GMatch_Lobster_SmallBold", w * 0.9, textYPos, self.textColor, TEXT_ALIGN_CENTER )
 	if ( self.isExpanded ) then
 		self.textColor = Color( 45, 45, 45 )
 		draw.RoundedBox( 0, 0, h * 0.25, w, h, Color( 255, 255, 255 ) )
@@ -109,6 +154,20 @@ end
 
 function SCOREBOARD_PLAYER_ROW:SetPlayerEntity( ply )
 	self.playerEntity = ply
+	self:GenerateLabels( )
+end
+
+function SCOREBOARD_PLAYER_ROW:Think( )
+	for index, lbl in ipairs( self.playerRowLabels ) do
+		if ( GMatch.Config.ScoreboardLabels[index] ) then
+			if ( IsValid( self.playerEntity ) ) then
+				lbl:SetText( GMatch.Config.ScoreboardLabels[index].valueFunc( self.playerEntity ) )
+			end
+			if ( GMatch.Config.ScoreboardLabels[index].valueRainbow ) then
+				lbl:SetTextColor( util.RainbowStrobe( 2 ) )
+			end
+		end
+	end
 end
 
 vgui.Register( "gMatch_ScoreboardPlayerRow", SCOREBOARD_PLAYER_ROW, "Panel" )

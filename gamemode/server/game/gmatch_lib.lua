@@ -1,24 +1,45 @@
 function GMatch:SearchForPlayers( )
-	timer.Create( "GMatch:SearchForPlayers", GMatch.Config.PlayerSearchInterval, 0, function( )
+	timer.Create( "GMatch:SearchForPlayers", self.Config.PlayerSearchInterval, 0, function( )
 		local playerCount = #player.GetAll( )
-		if ( playerCount < GMatch.Config.RequiredPlayers ) then
-			local remainPlayers = GMatch.Config.RequiredPlayers - playerCount
+		if ( playerCount < self.Config.RequiredPlayers ) then
+			local remainPlayers = self.Config.RequiredPlayers - playerCount
 			self:BroadcastCenterMessage( remainPlayers .. " more players are required before the match can begin.", 5, Color( 175, 45, 45 ) )
 		else
 			self:BroadcastCenterMessage( "The round has begun!", 5, Color( 125, 45, 45 ) )
 			timer.Destroy( "GMatch:SearchForPlayers" )
-			GMatch:BeginRound( )
+			self:BeginRound( )
 		end
 	end )
 end
 
+function GMatch:BeginIntermission( )
+	local intermissionLength = GMatch.Config.IntermissionLength
+	local overrideLength = hook.Call( "OnBeginIntermissionTimer", GAMEMODE, intermissionLength )
+	if ( overrideLength ) then intermissionLength = overrideLength end
+	self.GameData.IntermissionLength = intermissionLength
+	timer.Create( "GMatch:Intermission", intermissionLength, 1, function( )
+		self:SetGameVar( "IntermissionActive", false, true )
+		self:ToggleTimers( false, 0 )
+		self:SearchForPlayers( )
+	end )
+	self:AlterTimerLength( timer.TimeLeft( "GMatch:Intermission" ), intermissionLength )
+	self:BroadcastCenterMessage( "The next round will begin in " .. string.NiceTime( intermissionLength ) .. "!", 5, Color( 45, 125, 45 ) )
+	self:SetGameVar( "IntermissionActive", true, true )
+end
+
 function GMatch:BeginRound( )
-	local roundLength = GMatch.Config.RoundLength
-	local overrideLength = hook.Call( "OnBeginRoundTimer", GM, roundLength )
+	if ( self.Config.RespawnAmount ) then
+		for index, ply in ipairs ( player.GetAll( ) ) do
+			ply:SetPlayerVar( "RespawnCount", 0, true )
+		end
+		self.GameData.RespawnTimes = { }
+	end
+	local roundLength = self.Config.RoundLength
+	local overrideLength = hook.Call( "OnBeginRoundTimer", GAMEMODE, roundLength )
 	if ( overrideLength ) then roundLength = overrideLength end
-	GMatch.GameData.RoundLength = roundLength
+	self.GameData.RoundLength = roundLength
 	timer.Create( "GMatch:OngoingRound", roundLength, 1, function( )
-		local roundWinner = hook.Call( "OnRoundCheckWinner", GM )
+		local roundWinner = hook.Call( "OnRoundCheckWinner", GAMEMODE )
 		if ( roundWinner ) then
 			if ( tonumber( roundWinner ) ) then
 				self:BroadcastCenterMessage( team.GetName( tonumber( roundWinner ) ) .. " has won the round!", 10, nil, true, "GMatch_Lobster_LargeBold" )
@@ -28,31 +49,35 @@ function GMatch:BeginRound( )
 				roundWinner:SetGameStat( "Wins", roundWinner:GetGameStat( "Wins" ) + 1 )
 			end
 		end
-		hook.Call( "OnEndRound", GM, #player.GetAll( ) )
+		hook.Call( "OnEndRound", GAMEMODE, #player.GetAll( ) )
 		self:BroadcastCenterMessage( "The round is now over!", 5, Color( 175, 45, 45 ) )
-		GMatch:SearchForPlayers( )
-		GMatch:DisableTimers( )
-		GMatch:CheckForGameSwitch( )
-		GMatch:CheckForMapSwitch( )
+		--GMatch:SearchForPlayers( )
+		self:ToggleTimers( false, 0 )
+		self:CheckForGameSwitch( )
+		self:CheckForMapSwitch( )
+		self:PlayEndRoundMusic( )
+		self:SetGameVar( "RoundActive", false, true )
+		self:BeginIntermission( )
 	end )
-	hook.Call( "OnBeginRound", GM, #player.GetAll( ) )
-	GMatch:InitiateTimers( )
+	hook.Call( "OnBeginRound", GAMEMODE, #player.GetAll( ) )
+	self:InitiateTimers( )
+	self:SetGameVar( "RoundActive", true, true )
 end
 
 function GMatch:CheckForGameSwitch( )
-	GMatch.GameData.FinishedRounds = GMatch.GameData.FinishedRounds or 0
-	GMatch.GameData.FinishedRounds = GMatch.GameData.FinishedRounds + 1
-	GMatch:SetGameVar( "FinishedRounds", GMatch.GameData.FinishedRounds, true )
-	if ( GMatch.GameData.FinishedRounds % GMatch.Config.RoundAmountPerGameSwitch == 0 ) then
+	self.GameData.FinishedRounds = self.GameData.FinishedRounds or 0
+	self.GameData.FinishedRounds = self.GameData.FinishedRounds + 1
+	self:SetGameVar( "FinishedRounds", self.GameData.FinishedRounds, true )
+	if (self.GameData.FinishedRounds % self.Config.RoundAmountPerGameSwitch == 0 ) then
 		self:BeginGameVote( )
 	end
 end
 
 function GMatch:CheckForMapSwitch( )
-	GMatch.GameData.FinishedRounds = GMatch.GameData.FinishedRounds or 0
-	GMatch.GameData.FinishedRounds = GMatch.GameData.FinishedRounds + 1
-	GMatch:SetGameVar( "FinishedRounds", GMatch.GameData.FinishedRounds, true )
-	if ( GMatch.GameData.FinishedRounds % GMatch.Config.RoundAmountPerMapSwitch == 0 ) then
+	self.GameData.FinishedRounds = self.GameData.FinishedRounds or 0
+	self.GameData.FinishedRounds = self.GameData.FinishedRounds + 1
+	self:SetGameVar( "FinishedRounds", self.GameData.FinishedRounds, true )
+	if ( self.GameData.FinishedRounds % self.Config.RoundAmountPerMapSwitch == 0 ) then
 		self:BeginMapVote( )
 	end
 end
@@ -63,15 +88,16 @@ function GMatch:FinishRound( roundWinner )
 			self:BroadcastCenterMessage( team.GetName( tonumber( roundWinner ) ) .. " Team has won the round!", 10, nil, true, "GMatch_Lobster_LargeBold" )
 		elseif ( IsValid( roundWinner ) ) then
 			self:BroadcastCenterMessage( roundWinner:Name( ) .. " has won the round!", 10, nil, true, "GMatch_Lobster_LargeBold" )
-			roundWinner:SetGameStat( "Wins", victim:GetGameStat( "Wins" ) + 1 )
+			roundWinner:SetGameStat( "Wins", roundWinner:GetGameStat( "Wins" ) + 1 )
 		end
 	end
-	hook.Call( "OnFinishRound", GM, roundWinner )
+	hook.Call( "OnFinishRound", GAMEMODE, roundWinner )
 	timer.Destroy( "GMatch:OngoingRound" )
-	GMatch:CheckForGameSwitch( )
-	GMatch:CheckForMapSwitch( )
-	GMatch:SearchForPlayers( )
-	GMatch:DisableTimers( )
+	self:CheckForGameSwitch( )
+	self:CheckForMapSwitch( )
+	self:SearchForPlayers( )
+	self:ToggleTimers( false, 0 )
+	self:SetGameVar( "RoundActive", false, true )
 end
 
 function GMatch:BroadcastCenterMessage( text, len, col, isRainbow, font )
@@ -87,14 +113,14 @@ function GMatch:BroadcastNotify( txt, length, iconPath, textColor, panelColor, i
 end
 
 function GMatch:SetGameVar( name, val, networked )
-	GMatch.GameData.GameVars[name] = val
+	self.GameData.GameVars[name] = val
 	if not ( networked ) then return end
-	GMatch.GameData.NetworkedGameVars = GMatch.GameData.NetworkedGameVars or { }
-	GMatch.GameData.NetworkedGameVars[name] = val
+	self.GameData.NetworkedGameVars = GMatch.GameData.NetworkedGameVars or { }
+	self.GameData.NetworkedGameVars[name] = val
 	local valType = type( val )
 	if ( valType == "Player" or valType == "Weapon" ) then valType = "Entity" end
-	if not ( GMatch.GameVarTypes[ valType ] ) then ErrorNoHalt( "Invalid GameVar type defined.\n" ) return end
-	local varFunc = GMatch.GameVarTypes[ valType ]
+	if not ( self.GameVarTypes[ valType ] ) then ErrorNoHalt( "Invalid GameVar type defined.\n" ) return end
+	local varFunc = self.GameVarTypes[ valType ]
 	net.Start( "GMatch:ManipulateGameVars" )
 		net.WriteUInt( NET_VARS_SEND, 16 )
 		net.WriteString( name )
@@ -104,38 +130,39 @@ function GMatch:SetGameVar( name, val, networked )
 end
 
 function GMatch:BeginGameVote( )
-	if ( GMatch.GameData.GameVoteStarted or timer.Exists( "GMatch:GameSwitchTimer" ) ) then return end
-	GMatch.GameData.GameVotes = { }
-	GMatch.GameData.GameVoteStarted = true
+	if ( self.GameData.GameVoteStarted or timer.Exists( "GMatch:GameSwitchTimer" ) ) then return end
+	if ( self.GameData.MapVoteStarted or timer.Exists( "GMatch:MapSwitchTimer" ) ) then return end
+	self.GameData.GameVotes = { }
+	self.GameData.GameVoteStarted = true
 	net.Start( "GMatch:ManipulateGameVotes" )
 		net.WriteUInt( NET_GAMEVOTES_OPEN, 16 )
 	net.Broadcast( )
-	timer.Create( "GMatch:GameVoteTimer", GMatch.Config.GameVoteLength, 1, function( )
+	timer.Create( "GMatch:GameVoteTimer", self.Config.GameVoteLength, 1, function( )
 		net.Start( "GMatch:ManipulateGameVotes" )
 			net.WriteUInt( NET_GAMEVOTES_CLOSE, 16 )
 		net.Broadcast( )
 		local voteTable = { }
-		for steamID, gameName in pairs ( GMatch.GameData.GameVotes ) do
+		for steamID, gameName in pairs ( self.GameData.GameVotes ) do
 			local curValue = voteTable[gameName] or 0
 			curValue = curValue + 1
 			voteTable[gameName] = curValue
 		end
-		GMatch.GameData.GameVotes = { }
-		GMatch.GameData.GameVoteStarted = false
+		self.GameData.GameVotes = { }
+		self.GameData.GameVoteStarted = false
 		local winningGame = table.GetWinningKey( voteTable )
 		if not ( winningGame ) then
-			GMatch:BroadcastCenterMessage( "Nobody voted for a gamemode.", 5 )
+			self:BroadcastCenterMessage( "Nobody voted for a gamemode.", 5 )
 			return
 		end
-		local winnerName = GMatch.Config.Gamemodes[winningGame].name
+		local winnerName = self.Config.Gamemodes[winningGame].name
 		if ( winningGame == gMatchGameFolder ) then
-			GMatch:BroadcastCenterMessage( "The current gamemode, " .. winnerName .. ", has won the vote.", 5 )
+			self:BroadcastCenterMessage( "The current gamemode, " .. winnerName .. ", has won the vote.", 5 )
 		else
-			GMatch:BroadcastCenterMessage( winnerName .. " has won the vote.", 5 )
+			self:BroadcastCenterMessage( winnerName .. " has won the vote.", 5 )
 			local gameSwitchTime = GMatch.Config.TimeUntilGameSwitch
-			GMatch:BroadcastCenterMessage( "The new gamemode will begin in " .. string.NiceTime( gameSwitchTime ) .. ".", 5 )
-			GMatch:SetGameVar("GameSwitchTime", gameSwitchTime, true )
-			timer.Create( "GMatch:GameSwitchTimer", GMatch.Config.TimeUntilGameSwitch, 1, function( )
+			self:BroadcastCenterMessage( "The new gamemode will begin in " .. string.NiceTime( gameSwitchTime ) .. ".", 5 )
+			self:SetGameVar("GameSwitchTime", gameSwitchTime, true )
+			timer.Create( "GMatch:GameSwitchTimer", self.Config.TimeUntilGameSwitch, 1, function( )
 				RunConsoleCommand( "gamemode", winningGame )
 				RunConsoleCommand( "changelevel", game.GetMap( ) )
 			end )
@@ -144,38 +171,39 @@ function GMatch:BeginGameVote( )
 end
 
 function GMatch:BeginMapVote( )
-	if ( GMatch.GameData.MapVoteStarted or timer.Exists( "GMatch:MapSwitchTimer" ) ) then return end
-	GMatch.GameData.MapVotes = { }
-	GMatch.GameData.MapVoteStarted = true
+	if ( self.GameData.MapVoteStarted or timer.Exists( "GMatch:MapSwitchTimer" ) ) then return end
+	if ( self.GameData.GameVoteStarted or timer.Exists( "GMatch:GameSwitchTimer" ) ) then return end
+	self.GameData.MapVotes = { }
+	self.GameData.MapVoteStarted = true
 	net.Start( "GMatch:ManipulateMapVotes" )
 		net.WriteUInt( NET_MAPVOTES_OPEN, 16 )
 	net.Broadcast( )
-	timer.Create( "GMatch:MapVoteTimer", GMatch.Config.GameVoteLength, 1, function( )
+	timer.Create( "GMatch:MapVoteTimer", self.Config.GameVoteLength, 1, function( )
 		net.Start( "GMatch:ManipulateMapVotes" )
 			net.WriteUInt( NET_MAPVOTES_CLOSE, 16 )
 		net.Broadcast( )
 		local voteTable = { }
-		for steamID, mapName in pairs ( GMatch.GameData.MapVotes ) do
+		for steamID, mapName in pairs ( self.GameData.MapVotes ) do
 			local curValue = voteTable[mapName] or 0
 			curValue = curValue + 1
 			voteTable[mapName] = curValue
 		end
-		GMatch.GameData.MapVotes = { }
-		GMatch.GameData.MapVoteStarted = false
+		self.GameData.MapVotes = { }
+		self.GameData.MapVoteStarted = false
 		local winningMap = table.GetWinningKey( voteTable )
 		if not ( winningMap ) then
-			GMatch:BroadcastCenterMessage( "Nobody voted for a map.", 5 )
+			self:BroadcastCenterMessage( "Nobody voted for a map.", 5 )
 			return
 		end
-		local winnerName = GMatch.Config.Maps[winningMap].name
+		local winnerName = self.Config.Maps[winningMap].name
 		if ( winningMap == game.GetMap( ) ) then
-			GMatch:BroadcastCenterMessage( "The current map, " .. winnerName .. ", has won the vote.", 5 )
+			self:BroadcastCenterMessage( "The current map, " .. winnerName .. ", has won the vote.", 5 )
 		else
-			GMatch:BroadcastCenterMessage( winnerName .. " has won the vote.", 5 )
-			local mapSwitchTime = GMatch.Config.TimeUntilMapSwitch
-			GMatch:BroadcastCenterMessage( "The new map will load in " .. string.NiceTime( mapSwitchTime ) .. ".", 5 )
-			GMatch:SetGameVar("MapSwitchTime", mapSwitchTime, true )
-			timer.Create( "GMatch:MapSwitchTimer", GMatch.Config.TimeUntilMapSwitch, 1, function( )
+			self:BroadcastCenterMessage( winnerName .. " has won the vote.", 5 )
+			local mapSwitchTime = self.Config.TimeUntilMapSwitch
+			self:BroadcastCenterMessage( "The new map will load in " .. string.NiceTime( mapSwitchTime ) .. ".", 5 )
+			self:SetGameVar("MapSwitchTime", mapSwitchTime, true )
+			timer.Create( "GMatch:MapSwitchTimer", self.Config.TimeUntilMapSwitch, 1, function( )
 				RunConsoleCommand( "changelevel", winningMap )
 			end )
 		end
@@ -217,8 +245,8 @@ function GMatch:GenerateTeams( amt )
 		net.WriteUInt( NET_TEAMS_CLEAR, 16 )
 	net.Broadcast( )
 	local amt = amt or 2
-	if ( amt > #GMatch.Config.DefaultTeams ) then amt = #GMatch.Config.DefaultTeams end
-	local shuffledTable = table.Shuffle( GMatch.Config.DefaultTeams )
+	if ( amt > #self.Config.DefaultTeams ) then amt = #Gself.Config.DefaultTeams end
+	local shuffledTable = table.Shuffle( self.Config.DefaultTeams )
 	for i = 1, amt do
 		local teamData = shuffledTable[i]
 		team.SetUp( i, teamData.name, teamData.col )
@@ -244,5 +272,68 @@ function GMatch:BroadcastColoredMessage( messTable )
 	net.Start( "GMatch:ManipulateText" )
 		net.WriteUInt( NET_TEXT_COLOREDMESSAGE, 16 )
 		net.WriteTable( messTable )
+	net.Broadcast( )
+end
+
+function GMatch:StartRespawningEntityTimer( spawnRate, spawnChance )
+	timer.Create( "GMatch:EntityRespawningTimer", spawnRate, 0, function( ) 
+		for id, entTbl in pairs ( self.GameData.RespawningEntities or { } ) do
+			if ( IsValid( entTbl.ent ) ) then continue end
+			local spawnChance = math.Clamp( spawnChance, 1, 100 )
+			local randomRoll = math.random( 100 )
+			if ( randomRoll > spawnChance ) then continue end
+			local respawnEnt = ents.Create( entTbl.class )
+			if ( entTbl.class == "prop_physics" ) then
+				respawnEnt:SetModel( entTbl.model )
+			end
+			respawnEnt:Spawn( )
+			respawnEnt:Activate( )
+			respawnEnt.respawnID = id
+			respawnEnt:SetPos( entTbl.pos )
+			respawnEnt:SetAngles( entTbl.ang )
+			local physObj = respawnEnt:GetPhysicsObject( )
+			if ( physObj:IsValid( ) and entTbl.frozen ) then physObj:EnableMotion( false ) end
+			self.GameData.RespawningEntities[id].ent = respawnEnt
+		end
+	end )
+end
+
+function GMatch:SpawnPersistentEntities( resultSet )
+	for index, data in ipairs ( resultSet ) do
+		local persistEnt = ents.Create( data.class )
+		if ( data.class == "prop_physics" ) then
+			persistEnt:SetModel( data.model )
+		end
+		persistEnt:Spawn( )
+		persistEnt:Activate( )
+		persistEnt.persistID = data.id
+		local entPos = Vector( tonumber( data.x ), tonumber( data.y ), tonumber( data.z ) )
+		local entAng = Angle( tonumber( data.pitch ), tonumber( data.yaw ), tonumber( data.roll ) )
+		persistEnt:SetPos( entPos )
+		persistEnt:SetAngles( entAng )
+		local physObj = persistEnt:GetPhysicsObject( )
+		if ( physObj:IsValid( ) and tobool( tonumber( data.frozen ) ) ) then physObj:EnableMotion( false ) end
+	end
+end
+
+function GMatch:SpawnRespawnableEntities( resultSet )
+	for index, data in ipairs ( resultSet ) do
+		self.GameData.RespawningEntities = GMatch.GameData.RespawningEntities or { }
+		self.GameData.RespawningEntities[tonumber( data.id )] = {
+			ent = nil,
+			class = data.class,
+			model = data.model,
+			pos = Vector( tonumber( data.x ), tonumber( data.y ), tonumber( data.z ) ),
+			ang = Angle( tonumber( data.pitch ), tonumber( data.yaw ), tonumber( data.roll ) ),
+			frozen = tobool( tonumber( data.frozen ) )
+		}
+	end
+end
+
+function GMatch:PlayEndRoundMusic( )
+	if not ( self.Config.EnableEndRoundMusic ) then return end
+	net.Start( "GMatch:ManipulateMisc" )
+		net.WriteUInt( NET_MISC_TRIGGERENDGAMEMUSIC, 16 )
+		net.WriteUInt( math.random( #self.Config.EndRoundMusicURLs ), 16 )
 	net.Broadcast( )
 end
