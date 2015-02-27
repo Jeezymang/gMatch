@@ -1,15 +1,15 @@
 GMatch.Config.RequiredPlayers = 2
 GMatch.Config.RoundLength = 120
-GMatch.Config.IntermissionLength = 15
+GMatch.Config.IntermissionLength = 30
 GMatch.Config.RespawnTime = 5
 GMatch.Config.EnablePlayerDeathSpectate = true
 GMatch.Config.TimeUntilSpectate = 2
 GMatch.Config.SpectateTeamOnly = true
-GMatch.Config.PlayerSearchInterval = 10
+GMatch.Config.PlayerSearchInterval = 5
 GMatch.Config.FallbackLoadout = { "weapon_crowbar", "weapon_smg1" }
 GMatch.Config.GameVoteLength = 30
 GMatch.Config.AutoResourceContent = true
-GMatch.Config.TimeUntilGameSwitch = 30
+GMatch.Config.TimeUntilGameSwitch = 60
 GMatch.Config.TimeUntilMapSwitch = 60
 GMatch.Config.RoundAmountPerGameSwitch = 3
 GMatch.Config.RoundAmountPerMapSwitch = 5
@@ -133,6 +133,10 @@ GMatch.Config.Gamemodes = {
 	["lastmanstanding"] = {
 		name = "Last Man Standing",
 		desc = "Survive the zombies."
+	},
+	["kingofthehill"] = {
+		name = "King of the Hill",
+		desc = "Hold the enemy team's base and gather points."
 	}
 }
 

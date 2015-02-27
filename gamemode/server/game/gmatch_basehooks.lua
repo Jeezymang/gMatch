@@ -22,6 +22,7 @@ function GM:InitPostEntity( )
 		GMatch:SpawnRespawnableEntities( respawnEntities )
 	end
 	GMatch:StartRespawningEntityTimer( GMatch.Config.EntityRespawnInterval, GMatch.Config.EntityRespawnChance )
+	GMatch:RetrieveSpawnPoints( )
 end
 
 function GM:OnReloaded( )
@@ -62,6 +63,13 @@ function GM:PlayerSpawn( ply )
 		ply:Spawn( )
 	end
 end
+
+hook.Add( "OnSelectSpawnPoint", "GMatch_OnSelectSpawnPoint", function( ply )
+	GMatch.GameData.SpawnPoints = GMatch.GameData.SpawnPoints or { }
+	if ( table.Count( GMatch.GameData.SpawnPoints ) < 1 ) then return end
+	local spawnPoint = table.Random( GMatch.GameData.SpawnPoints )
+	return ( spawnPoint.pos )
+end )
 
 function GM:PlayerSelectSpawn( ply, spawnAttempts )
 	local overrideSpawn = hook.Call( "OnSelectSpawnPoint", GAMEMODE, ply )

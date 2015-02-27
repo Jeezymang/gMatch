@@ -119,12 +119,20 @@ local function DrawHealthIndicator( )
 end
 
 local function DrawGameSwitchTime( )
-	if not ( gameSwitchTime ) then
-		gameSwitchTime = GMatch:GetGameVar( "GameSwitchTime", nil )
-		if ( gameSwitchTime ) then gameSwitchTime = CurTime( ) + gameSwitchTime end
-	elseif ( gameSwitchTime and gameSwitchTime > CurTime( ) ) then
+	local gameSwitchTime = GMatch:GetGameVar( "GameSwitchTime", nil )
+	if ( gameSwitchTime ) then gameSwitchTime = CurTime( ) + gameSwitchTime end
+	if ( gameSwitchTime and gameSwitchTime > CurTime( ) ) then
 		local timeLeft = string.NiceTime( gameSwitchTime - CurTime( ) )
-		draw.SimpleText( "The gamemode will switch in " .. timeLeft .. "!", "GMatch_Lobster_MediumBold", ScrW( ) * 0.5, ScrH( ) * 0.2, Color( 255, 255, 255 ), TEXT_ALIGN_CENTER )
+		draw.SimpleText( "The gamemode will switch in " .. timeLeft .. "!", "GMatch_Lobster_MediumBold", ScrW( ) * 0.5, ScrH( ) * 0.1, Color( 255, 255, 255 ), TEXT_ALIGN_CENTER )
+	end
+end
+
+local function DrawMapSwitchTime( )
+	local mapSwitchTime = GMatch:GetGameVar( "MapSwitchTime", nil )
+	if ( mapSwitchTime ) then mapSwitchTime = CurTime( ) + mapSwitchTime end
+	if ( mapSwitchTime and mapSwitchTime > CurTime( ) ) then
+		local timeLeft = string.NiceTime( mapSwitchTime - CurTime( ) )
+		draw.SimpleText( "The map will switch in " .. timeLeft .. "!", "GMatch_Lobster_MediumBold", ScrW( ) * 0.5, ScrH( ) * 0.1, Color( 255, 255, 255 ), TEXT_ALIGN_CENTER )
 	end
 end
 
@@ -185,7 +193,7 @@ local function DrawCenterScreenMessages( )
 			if ( mesTbl.isRainbow ) then textColor = util.RainbowStrobe( 2 ) end
 			surface.SetFont( textFont )
 			local txtW, txtH = surface.GetTextSize( mesTbl.message )
-			local offsetY = ( ( ScrH( ) * 0.2 ) + ( ( 24 * index ) ) ) - txtH
+			local offsetY = ( ( ScrH( ) * 0.2 ) + ( ( 26 * index ) ) ) - txtH
 
 			/*if ( screenMessages[index-1] ) then
 				local mes, font = screenMessages[index-1].message, screenMessages[index-1].font
@@ -231,6 +239,7 @@ hook.Add( "HUDPaint", "GMatch:HUDPaint", function( )
 	DrawNotifications( )
 	DrawHealthIndicator( )
 	DrawGameSwitchTime( )
+	DrawMapSwitchTime( )
 	DrawRespawnTimer( )
 	DrawCenterScreenMessages( )
 	DrawNETDataTimer( )

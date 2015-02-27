@@ -25,7 +25,9 @@ net.Receive( "GMatch:ManipulateText", function( len )
 		else col = col:ToColor( ) end
 		local isRainbow = tobool( net.ReadBit( ) )
 		local font = net.ReadString( )
-		LocalPlayer( ):PrintCenterMessage( txt, len, col, isRainbow, font )
+		if ( IsValid( LocalPlayer( ) ) ) then
+			LocalPlayer( ):PrintCenterMessage( txt, len, col, isRainbow, font )
+		end
 	elseif ( opType == NET_TEXT_DISPLAYNOTIFY ) then
 		local txt = net.ReadString( )
 		local len = net.ReadUInt( 16 )
@@ -38,7 +40,9 @@ net.Receive( "GMatch:ManipulateText", function( len )
 		else panelColor = panelColor:ToColor( ) end
 		local isRainbow = tobool( net.ReadBit( ) )
 		local font = net.ReadString( )
-		LocalPlayer( ):DisplayNotify( txt, len, iconPath, textColor, panelColor, isRainbow, font )
+		if ( IsValid( LocalPlayer( ) ) ) then
+			LocalPlayer( ):DisplayNotify( txt, len, iconPath, textColor, panelColor, isRainbow, font )
+		end
 	elseif ( opType == NET_TEXT_COLOREDMESSAGE ) then
 		local textTable = net.ReadTable( )
 		chat.AddText( unpack( textTable ) )

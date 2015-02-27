@@ -121,7 +121,7 @@ function SCOREBOARD_PLAYER_ROW:Paint( w, h )
 	surface.SetFont( "GMatch_Lobster_Small" )
 	local nameWide, textTall = surface.GetTextSize( rowName )
 	local textYPos = ( h * 0.5 ) - ( textTall / 2 )
-	if ( self.isExpanded ) then textYPos = textYPos - 45 end
+	if ( self.isExpanded ) then textYPos = textYPos - 40 end
 	self.textColor = Color( 255, 255, 255 )
 	draw.RoundedBox( 4, 0, 0, w, h, rowColor )
 	if ( self.isExpanded ) then

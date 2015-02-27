@@ -32,6 +32,17 @@ function GMatch:CreateTables( )
 	`lastjoin` INTEGER DEFAULT 0 );
 	]]
 	sql.Query( statsTableQuery )
+	local spawnPointsTableQuery = [[
+	CREATE TABLE IF NOT EXISTS gmatch_spawnpoints (
+	`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+	`map` VARCHAR(255) NOT NULL,
+	`gamemode` VARCHAR(255) NOT NULL,
+	`team` INTEGER,
+	`x` INTEGER NOT NULL,
+	`y` INTEGER NOT NULL,
+	`z` INTEGER NOT NULL );
+	]]
+	sql.Query( spawnPointsTableQuery )
 end
 
 function GMatch:RetrievePlayerStats( ply )
@@ -103,4 +114,21 @@ function GMatch:RetrieveMapEntities( )
 	local persistEntities = sql.Query( string.format( selectQuery, SQLStr( "gmatch_persist" ), SQLStr( game.GetMap( ) ), SQLStr( gMatchGameFolder ) ) )
 	local respawnEntities = sql.Query( string.format( selectQuery, SQLStr( "gmatch_respawnable" ), SQLStr( game.GetMap( ) ), SQLStr( gMatchGameFolder ) ) )
 	return persistEntities, respawnEntities
+end
+
+function GMatch:RetrieveSpawnPoints( )
+	local selectQuery = [[
+	SELECT id, team, x, y, z
+	FROM gmatch_spawnpoints
+	WHERE map = %s AND gamemode = %s;
+	]]
+	local resultSet = sql.Query( string.format( selectQuery, SQLStr( game.GetMap( ) ), SQLStr( gMatchGameFolder ) ) )
+	if not ( resultSet ) then return end
+	GMatch.GameData.SpawnPoints = GMatch.GameData.SpawnPoints or { }
+	for index, data in ipairs( resultSet ) do
+		GMatch.GameData.SpawnPoints[tonumber( data.id ) ] = {
+			teamIndex = tonumber( data.team ), 
+			pos = Vector( tonumber( data.x ), tonumber( data.y ), tonumber( data.z ) ) 
+		}
+	end
 end

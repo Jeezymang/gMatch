@@ -299,7 +299,7 @@ function GM:OnPlayerInitialized( ply )
 		ply.netDataFinishedSending = true
 		ply:DisplayNotify( "Finished loading networked data. ( " .. string.NiceTime( ply.netDataTimeOffset or 1 ) .. " time elapsed )", 4, "icon16/wrench.png" )
 	end )
-	local assignTeam = hook.Call( "OnPlayerAssignTeam", GM, ply )
+	local assignTeam = hook.Call( "OnPlayerAssignTeam", GAMEMODE, ply )
 	if ( assignTeam ) then ply:SetTeam( assignTeam )
 	else ply:SetTeam( 1001 ) end
 	ply:InitiateGameTimer( )

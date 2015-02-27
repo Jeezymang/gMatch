@@ -116,7 +116,7 @@ end
 
 function plyMeta:SetGameStat( stat, val, initialSetting )
 	if ( self:IsBot( ) ) then return end
-	if ( !self.netDataFinishedSending and !initialSetting ) then return end
+	if ( ( !self.netDataFinishedSending or !self.isInitialized ) and !initialSetting ) then return end
 	GMatch.GameData.PlayerStats = GMatch.GameData.PlayerStats or { }
 	local playerTable = GMatch.GameData.PlayerStats[ self:SteamID( ) ]
 	if not ( playerTable ) then return end
@@ -133,7 +133,7 @@ end
 
 function plyMeta:SaveGameStats( )
 	if ( self:IsBot( ) ) then return end
-	if not ( self.netDataFinishedSending ) then return end
+	if ( !self.netDataFinishedSending or !self.isInitialized ) then return end
 	GMatch.GameData.PlayerStats = GMatch.GameData.PlayerStats or { }
 	local playerTable = GMatch.GameData.PlayerStats[ self:SteamID( ) ]
 	if not ( playerTable ) then return end

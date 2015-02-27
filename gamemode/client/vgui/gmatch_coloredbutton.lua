@@ -19,7 +19,7 @@ function PANEL:SetButtonColor( col )
 end
 
 function PANEL:SetButtonHoverColor( col )
-	self.buttonHovercolor = col
+	self.buttonHoverColor = col
 end
 
 function PANEL:SetButtonHoverSound( snd )

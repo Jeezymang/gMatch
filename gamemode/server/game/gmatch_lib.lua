@@ -51,7 +51,6 @@ function GMatch:BeginRound( )
 		end
 		hook.Call( "OnEndRound", GAMEMODE, #player.GetAll( ) )
 		self:BroadcastCenterMessage( "The round is now over!", 5, Color( 175, 45, 45 ) )
-		--GMatch:SearchForPlayers( )
 		self:ToggleTimers( false, 0 )
 		self:CheckForGameSwitch( )
 		self:CheckForMapSwitch( )
@@ -83,21 +82,30 @@ function GMatch:CheckForMapSwitch( )
 end
 
 function GMatch:FinishRound( roundWinner )
+	local roundWinner = roundWinner
+	if not ( roundWinner ) then
+		local closestWinner = hook.Call( "OnRoundCheckWinner", GAMEMODE )
+		if ( closestWinner ) then roundWinner = closestWinner end
+	end
 	if ( roundWinner ) then
 		if ( tonumber( roundWinner ) ) then
 			self:BroadcastCenterMessage( team.GetName( tonumber( roundWinner ) ) .. " Team has won the round!", 10, nil, true, "GMatch_Lobster_LargeBold" )
+			local playerTable = team.GetPlayers( tonumber( roundWinner ) )
+			for index, ply in ipairs ( playerTable ) do
+				ply:SetGameStat( "Wins", ply:GetGameStat( "Wins", 0 ) + 1 )
+			end
 		elseif ( IsValid( roundWinner ) ) then
 			self:BroadcastCenterMessage( roundWinner:Name( ) .. " has won the round!", 10, nil, true, "GMatch_Lobster_LargeBold" )
-			roundWinner:SetGameStat( "Wins", roundWinner:GetGameStat( "Wins" ) + 1 )
+			roundWinner:SetGameStat( "Wins", roundWinner:GetGameStat( "Wins", 0 ) + 1 )
 		end
 	end
 	hook.Call( "OnFinishRound", GAMEMODE, roundWinner )
 	timer.Destroy( "GMatch:OngoingRound" )
 	self:CheckForGameSwitch( )
 	self:CheckForMapSwitch( )
-	self:SearchForPlayers( )
 	self:ToggleTimers( false, 0 )
 	self:SetGameVar( "RoundActive", false, true )
+	self:BeginIntermission( )
 end
 
 function GMatch:BroadcastCenterMessage( text, len, col, isRainbow, font )
@@ -162,6 +170,9 @@ function GMatch:BeginGameVote( )
 			local gameSwitchTime = GMatch.Config.TimeUntilGameSwitch
 			self:BroadcastCenterMessage( "The new gamemode will begin in " .. string.NiceTime( gameSwitchTime ) .. ".", 5 )
 			self:SetGameVar("GameSwitchTime", gameSwitchTime, true )
+			timer.Simple( self.Config.TimeUntilGameSwitch * 0.75, function( )
+				self:SaveAllPlayerStats( 0.15 )
+			end )
 			timer.Create( "GMatch:GameSwitchTimer", self.Config.TimeUntilGameSwitch, 1, function( )
 				RunConsoleCommand( "gamemode", winningGame )
 				RunConsoleCommand( "changelevel", game.GetMap( ) )
@@ -203,6 +214,9 @@ function GMatch:BeginMapVote( )
 			local mapSwitchTime = self.Config.TimeUntilMapSwitch
 			self:BroadcastCenterMessage( "The new map will load in " .. string.NiceTime( mapSwitchTime ) .. ".", 5 )
 			self:SetGameVar("MapSwitchTime", mapSwitchTime, true )
+			timer.Simple( self.Config.TimeUntilMapSwitch * 0.75, function( )
+				self:SaveAllPlayerStats( 0.15 )
+			end )
 			timer.Create( "GMatch:MapSwitchTimer", self.Config.TimeUntilMapSwitch, 1, function( )
 				RunConsoleCommand( "changelevel", winningMap )
 			end )
@@ -336,4 +350,23 @@ function GMatch:PlayEndRoundMusic( )
 		net.WriteUInt( NET_MISC_TRIGGERENDGAMEMUSIC, 16 )
 		net.WriteUInt( math.random( #self.Config.EndRoundMusicURLs ), 16 )
 	net.Broadcast( )
+end
+
+function GMatch:SaveAllPlayerStats( increment )
+	self:BroadcastNotify( "Beginning to save stats for all online players.", 4, "icon16/wrench.png" )
+	local saveTimerIncrement = increment
+	local savedPlayerCount = 0
+	for index, ply in ipairs ( player.GetAll( ) ) do
+		if ( ply:IsBot( ) ) then return end
+		timer.Simple( saveTimerIncrement, function( )
+			if not ( IsValid( ply ) ) then return end
+			ply:SaveGameStats( )
+		end )
+		savedPlayerCount = savedPlayerCount + 1
+		saveTimerIncrement = saveTimerIncrement + increment
+	end
+	local saveTime = savedPlayerCount * increment
+	timer.Simple( saveTime, function( ) 
+		self:BroadcastNotify( "Saved stats for " .. savedPlayerCount .. " players. ( " .. string.NiceTime( saveTime ) .. " elapsed. )", 4, "icon16/comment.png" )
+	end )
 end

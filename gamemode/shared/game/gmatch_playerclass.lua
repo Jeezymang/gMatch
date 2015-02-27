@@ -69,6 +69,7 @@ function PLAYER:Loadout()
 	end
 	if ( self.Player:IsSuperAdmin( ) ) then
 		self.Player:Give( "weapon_physgun" )
+		self.Player:Give( "gmatch_tool" )
 	end
 end
 
