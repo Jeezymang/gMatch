@@ -27,6 +27,12 @@ function GMatch:BeginIntermission( )
 	self:SetGameVar( "IntermissionActive", true, true )
 end
 
+function GMatch:DestroyWarningTimers( )
+	timer.Destroy( "GMatch:OneMinuteWarning" )
+	timer.Destroy( "GMatch:ThirtySecondWarning" )
+	timer.Destroy( "GMatch:TenSecondWarning" )
+end
+
 function GMatch:BeginRound( )
 	if ( self.Config.RespawnAmount ) then
 		for index, ply in ipairs ( player.GetAll( ) ) do
@@ -38,6 +44,19 @@ function GMatch:BeginRound( )
 	local overrideLength = hook.Call( "OnBeginRoundTimer", GAMEMODE, roundLength )
 	if ( overrideLength ) then roundLength = overrideLength end
 	self.GameData.RoundLength = roundLength
+	if ( roundLength >= 60 ) then
+		timer.Create( "GMatch:OneMinuteWarning", roundLength - 60, 1, function( )
+			self:BroadcastSound( "halo/oneminuteremaining.mp3")
+		end )
+	end
+	if ( roundLength >= 30 ) then
+		timer.Create( "GMatch:ThirtySecondWarning", roundLength - 30, 1, function( )
+			self:BroadcastSound( "halo/thirtysecondsremaining.mp3")
+		end )
+	end
+	timer.Create( "GMatch:TenSecondWarning", roundLength - 10, 1, function( )
+		self:BroadcastSound( "halo/tensecondsremaining.mp3")
+	end )
 	timer.Create( "GMatch:OngoingRound", roundLength, 1, function( )
 		local roundWinner = hook.Call( "OnRoundCheckWinner", GAMEMODE )
 		if ( roundWinner ) then
@@ -57,6 +76,7 @@ function GMatch:BeginRound( )
 		self:PlayEndRoundMusic( )
 		self:SetGameVar( "RoundActive", false, true )
 		self:BeginIntermission( )
+		self:BroadcastSound( "halo/game_over.mp3" )
 	end )
 	hook.Call( "OnBeginRound", GAMEMODE, #player.GetAll( ) )
 	self:InitiateTimers( )
@@ -88,7 +108,7 @@ function GMatch:FinishRound( roundWinner )
 		if ( closestWinner ) then roundWinner = closestWinner end
 	end
 	if ( roundWinner ) then
-		if ( tonumber( roundWinner ) ) then
+		if ( tonumber( roundWinner ) and team.NumPlayers( roundWinner ) > 0 ) then
 			self:BroadcastCenterMessage( team.GetName( tonumber( roundWinner ) ) .. " Team has won the round!", 10, nil, true, "GMatch_Lobster_LargeBold" )
 			local playerTable = team.GetPlayers( tonumber( roundWinner ) )
 			for index, ply in ipairs ( playerTable ) do
@@ -101,9 +121,12 @@ function GMatch:FinishRound( roundWinner )
 	end
 	hook.Call( "OnFinishRound", GAMEMODE, roundWinner )
 	timer.Destroy( "GMatch:OngoingRound" )
+	self:BroadcastSound( "halo/game_over.mp3" )
+	self:DestroyWarningTimers( )
 	self:CheckForGameSwitch( )
 	self:CheckForMapSwitch( )
 	self:ToggleTimers( false, 0 )
+	self:PlayEndRoundMusic( )
 	self:SetGameVar( "RoundActive", false, true )
 	self:BeginIntermission( )
 end
@@ -118,6 +141,13 @@ function GMatch:BroadcastNotify( txt, length, iconPath, textColor, panelColor, i
 	for index, ply in ipairs ( player.GetAll( ) ) do
 		ply:DisplayNotify( txt, length, iconPath, textColor, panelColor, isRainbow, font )
 	end
+end
+
+function GMatch:BroadcastSound( soundPath, plyTbl )
+	net.Start( "GMatch:ManipulateMisc" )
+		net.WriteUInt( NET_MISC_PLAYSOUND, 16 )
+		net.WriteString( soundPath )
+	net.Send( plyTbl or player.GetAll( ) )
 end
 
 function GMatch:SetGameVar( name, val, networked )
@@ -239,7 +269,7 @@ function GMatch:RespawnPlayers( )
 end
 
 function GMatch:GetSmallestTeam( )
-	if ( !team.GetAllTeams( ) or #team.GetAllTeams( ) <= 0 ) then return 1 end
+	if ( !team.GetAllTeams( ) or #team.GetAllTeams( ) <= 0 ) then return 1001 end
 	local teamTable = { }
 	for index, teamData in ipairs( team.GetAllTeams( ) ) do
 		table.insert( teamTable, { teamEnum = index, plyCount = team.NumPlayers( index ) } ) 
@@ -369,4 +399,25 @@ function GMatch:SaveAllPlayerStats( increment )
 	timer.Simple( saveTime, function( ) 
 		self:BroadcastNotify( "Saved stats for " .. savedPlayerCount .. " players. ( " .. string.NiceTime( saveTime ) .. " elapsed. )", 4, "icon16/comment.png" )
 	end )
+end
+
+function GMatch:DidTeamGainLead( teamIndex, oldScore, newScore, valueFunc )
+	local sortedTable = { }
+	local scoreTable = { }
+	for _teamIndex, teamTbl in pairs ( team.GetAllTeams( ) ) do
+		if ( _teamIndex == teamIndex ) then continue end
+		table.insert( sortedTable, { teamIndex = _teamIndex, value = valueFunc( _teamIndex ) } )
+		scoreTable[ valueFunc( _teamIndex ) ] = scoreTable[ valueFunc( _teamIndex ) ] or { }
+		table.insert( scoreTable[ valueFunc( _teamIndex ) ], _teamIndex )
+	end
+	table.SortByMember( sortedTable, "value", false )
+	local highestScore = sortedTable[1].value
+	if ( newScore == highestScore ) then
+		self:BroadcastSound( "halo/tiedtheleader.mp3", team.GetPlayers( teamIndex ) )
+	elseif ( oldScore <= highestScore and newScore > highestScore ) then
+		self:BroadcastSound( "halo/gainedthelead.mp3", team.GetPlayers( teamIndex ) )
+		for index, _teamIndex in pairs ( scoreTable[ highestScore ] ) do
+			self:BroadcastSound( "halo/lost_the_lead.mp3", team.GetPlayers( _teamIndex ) )
+		end
+	end
 end

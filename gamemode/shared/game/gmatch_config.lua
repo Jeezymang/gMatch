@@ -22,6 +22,9 @@ GMatch.Config.KillingSpreeAmount = 5
 GMatch.Config.KillingSpreeAnnounceInterval = 5
 GMatch.Config.RespawnAmount = nil
 GMatch.Config.NETDataSendDelay = 0.1
+GMatch.Config.KillsForRevenge = 3
+GMatch.Config.KillsForDomination = 8
+GMatch.Config.PlayerHurtSoundChance = 45
 GMatch.Config.ScoreboardLabels = {
 	{
 		text = "Name",
@@ -183,4 +186,16 @@ GMatch.Config.EndRoundMusicURLs = {
 	{ name = "Of Montreal - Spiteful Intervention", url = "http://www.jeezy.rocks/gmatch/music_clips/SpitefulIntervention.mp3" },
 	{ name = "Ghosthustler - Someone Else's Ride", url = "http://www.jeezy.rocks/gmatch/music_clips/SomeoneElsesRide.mp3" },
 	{ name = "Basshunter - Welcome To Rainbow", url = "http://www.jeezy.rocks/gmatch/music_clips/WelcomeToRainbow.mp3" }
+}
+
+GMatch.Config.KillingSpreeSounds = {
+	[2] = "halo/doublekill.mp3",
+	[3] = "halo/triplekill.mp3",
+	[GMatch.Config.KillingSpreeAmount] = "halo/killingspree.mp3",
+	[GMatch.Config.KillingSpreeAmount + 3] = "halo/killfrenzy.mp3",
+	[GMatch.Config.KillingSpreeAmount + 7] = "halo/killtrocity.mp3",
+	[GMatch.Config.KillingSpreeAmount + 12] = "halo/runningriot.mp3",
+	[GMatch.Config.KillingSpreeAmount + 15] = "halo/untouchable.mp3",
+	[GMatch.Config.KillingSpreeAmount + 20] = "halo/unfreakinbelievable.mp3",
+	[GMatch.Config.KillingSpreeAmount + 30] = "quake/holyshit.mp3"
 }

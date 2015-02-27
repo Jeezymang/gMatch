@@ -33,6 +33,13 @@ function plyMeta:DisplayNotify( txt, length, iconPath, textColor, panelColor, is
 	net.Send( self )
 end
 
+function plyMeta:SendSound( soundPath )
+	net.Start( "GMatch:ManipulateMisc" )
+		net.WriteUInt( NET_MISC_PLAYSOUND, 16 )
+		net.WriteString( soundPath )
+	net.Send( self )
+end
+
 function plyMeta:GiveCurrentPrimaryAmmo( amt )
 	local activeWep = self:GetActiveWeapon( )
 	if ( IsValid( activeWep ) and activeWep:GetPrimaryAmmoType( ) ) then
@@ -89,6 +96,9 @@ function plyMeta:IncrementKillSpreeProgress( val )
 	local val = val or 1
 	self.killSpreeCount = self.killSpreeCount or 0
 	self.killSpreeCount = self.killSpreeCount + val
+	if ( self.killSpreeCount > 1 ) then
+		hook.Call( "OnPlayerKillingSpree", GAMEMODE, self, self.killSpreeCount )
+	end
 	if ( self.killSpreeCount == GMatch.Config.KillingSpreeAmount ) then
 		GMatch:BroadcastCenterMessage( self:Name( ) .. " is on a KILLING SPREE!", 5, nil, true, "GMatch_Lobster_LargeBold" )
 		self:SetGameStat( "KillingSprees", self:GetGameStat( "KillingSprees" ) + 1 )
@@ -175,5 +185,60 @@ function plyMeta:InitiateGameTimer( )
 		GMatch:AlterTimerLength( timer.TimeLeft( "GMatch:OngoingRound" ), GMatch.GameData.RoundLength, self )
 	elseif ( timer.Exists( "GMatch:Intermission" ) ) then
 		GMatch:AlterTimerLength( timer.TimeLeft( "GMatch:Intermission" ), GMatch.GameData.IntermissionLength, self )
+	end
+end
+
+function plyMeta:HasRevenge( victim )
+	self.revengeTable = self.revengeTable or { }
+	local revengeTable = self.revengeTable[ victim:SteamID( ) ]
+	if ( revengeTable and revengeTable > GMatch.Config.KillsForRevenge ) then
+		return true, revengeTable
+	else
+		return false
+	end
+end
+
+function plyMeta:TakeRevenge( victim )
+	self.revengeTable = self.revengeTable or { }
+	self.revengeTable[victim:SteamID( )] = nil
+	self:SetGameStat( "Revenges", self:GetGameStat( "Revenges", 0 ) + 1 )
+end
+
+function plyMeta:IsDominating( victim )
+	victim.revengeTable = victim.revengeTable or { }
+	local revengeTable = victim.revengeTable[ self:SteamID( ) ]
+	if ( revengeTable and revengeTable == GMatch.Config.KillsForDomination ) then
+		self:SetGameStat( "Dominations", self:GetGameStat( "Dominations", 0 ) + 1 )
+		return true
+	else
+		return false
+	end
+end
+
+function plyMeta:IncrementNoRevenge( attacker, amt )
+	local amt = amt or 1
+	self.revengeTable = self.revengeTable or { }
+	self.revengeTable[ attacker:SteamID( ) ] = self.revengeTable[ attacker:SteamID( ) ] or 0
+	self.revengeTable[ attacker:SteamID( ) ] = self.revengeTable[ attacker:SteamID( ) ] + amt
+end
+
+function plyMeta:DidGainLead( oldScore, newScore, valueFunc )
+	local sortedTable = { }
+	local scoreTable = { }
+	for index, ply in pairs ( player.GetAll( ) ) do
+		if ( ply == self ) then continue end
+		table.insert( sortedTable, { ply = ply, value = valueFunc( ply ) } )
+		scoreTable[ valueFunc( ply ) ] = scoreTable[ valueFunc( ply ) ] or { }
+		table.insert( scoreTable[ valueFunc( ply ) ], ply )
+	end
+	table.SortByMember( sortedTable, "value", false )
+	local highestScore = sortedTable[1].value
+	if ( newScore == highestScore ) then
+		self:SendSound( "halo/tiedtheleader.mp3" )
+	elseif ( oldScore <= highestScore and newScore > highestScore ) then
+		self:SendSound( "halo/gainedthelead.mp3" )
+		for index, ply in pairs ( scoreTable[ highestScore ] ) do
+			ply:SendSound( "halo/lost_the_lead.mp3" )
+		end
 	end
 end

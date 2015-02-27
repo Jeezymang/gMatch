@@ -100,6 +100,19 @@ function GM:PlayerDeath( victim, inflictor, attacker, secondPass )
 	victim:ResetKillSpreeProgress( )
 	if ( victim == attacker and !secondPass ) then victim:SetGameStat( "Suicides", victim:GetGameStat( "Suicides" ) + 1 ) end
 	if ( IsValid( attacker ) and attacker:IsPlayer( ) and attacker ~= victim and !secondPass ) then
+		if ( !attacker:IsBot( ) and !victim:IsBot( ) ) then
+			if ( attacker:HasRevenge( victim ) ) then
+				GMatch:BroadcastSound( "quake/vengeance.mp3" )
+				GMatch:BroadcastCenterMessage( attacker:Name( ) .. " has gotten revenge on " .. victim:Name( ) .. "!", 4, nil, true )
+				attacker:TakeRevenge( victim )
+			elseif ( attacker:IsDominating( victim ) ) then
+				GMatch:BroadcastSound( "quake/dominating.mp3" )
+				GMatch:BroadcastCenterMessage( attacker:Name( ) .. " is DOMINATING " .. victim:Name( ) .. "!", 4, nil, true )
+				victim:IncrementNoRevenge( attacker )
+			elseif ( !attacker:HasRevenge( victim ) ) then
+				victim:IncrementNoRevenge( attacker )
+			end
+		end
 		attacker:SetGameStat( "Kills", attacker:GetGameStat( "Kills" ) + 1 )
 		attacker:IncrementKillSpreeProgress( 1 )
 		victim:SetGameStat( "Deaths", victim:GetGameStat( "Deaths" ) + 1 )
@@ -163,12 +176,25 @@ end
 
 function GM:ScalePlayerDamage( ply, hitGroup, dmgInfo, secondPass )
 	self.BaseClass:ScalePlayerDamage( ply, hitGroup, dmgInfo, true )
+	local randomRoll = math.random( 1, 100 )
+	local playHurtSound = ( GMatch.Config.PlayerHurtSoundChance <= randomRoll )
+	if ( playHurtSound and !secondPass ) then
+		if ( string.find( string.lower( ply:GetModel( ) ), "female" ) ) then
+			ply:EmitSound( "vo/npc/female01/pain0" .. math.random( 1, 9 ) .. ".wav", 75, math.random( 100, 110 ) )
+		elseif ( string.find( string.lower( ply:GetModel( ) ), "male" ) ) then
+			ply:EmitSound( "vo/npc/male01/pain0" .. math.random( 1, 9 ) .. ".wav", 75, math.random( 100, 110 ) )
+		elseif ( string.find( string.lower( ply:GetModel( ) ), "zombie" ) or string.find( string.lower( ply:GetModel( ) ), "zombine" ) ) then
+			ply:EmitSound( "npc/zombie/zombie_pain" .. math.random( 1, 6 ) .. ".wav", 75, math.random( 100, 110 ) )
+		end
+	end
 	if ( hitGroup == HITGROUP_HEAD and !secondPass ) then
 		dmgInfo:ScaleDamage( 2 )
 		local attacker = dmgInfo:GetAttacker( )
 		if ( IsValid( attacker ) and attacker:IsPlayer( ) ) then
 			local hpLeft = ( ply:Health( ) + ply:Armor( ) ) - dmgInfo:GetDamage( )
 			if ( hpLeft <= 0 and !ply.wasHeadshotted ) then
+				local headshotSounds = { "quake/headshot.mp3", "quake/headshot2.mp3", "quake/headhunter.mp3" }
+				GMatch:BroadcastSound( headshotSounds[ math.random( #headshotSounds ) ] )
 				ply.wasHeadshotted = true
 				attacker:SetGameStat( "Headshots", attacker:GetGameStat( "Headshots" ) + 1 )
 				GMatch:BroadcastCenterMessage( attacker:Name( ) .. " has blew " .. ply:Name( ) .. "'s head off!", 5, nil, true, "GMatch_Lobster_LargeBold" )
@@ -198,5 +224,12 @@ function GM:KeyPress( ply, key )
 		if ( #player.GetAll( ) > 1 ) then
 			ply:SpectateRandomPlayer( )
 		end
+	end
+end
+
+function GM:OnPlayerKillingSpree( ply, amt )
+	local spreeSound = GMatch.Config.KillingSpreeSounds[ amt ]
+	if ( spreeSound ) then
+		GMatch:BroadcastSound( spreeSound )
 	end
 end

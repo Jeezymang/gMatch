@@ -1,11 +1,11 @@
 local dermaMenu
 function GM:OnContextMenuOpen( )
-	if not ( LocalPlayer( ):IsSuperAdmin( ) ) then return end
+	if not ( LocalPlayer( ):IsAdmin( ) ) then return end
 	gui.EnableScreenClicker( true )
 end
 
 function GM:OnContextMenuClose( )
-	if not ( LocalPlayer( ):IsSuperAdmin( ) ) then return end
+	if not ( LocalPlayer( ):IsAdmin( ) ) then return end
 	if ( IsValid( dermaMenu ) ) then
 		dermaMenu:Remove( )
 	end
@@ -47,5 +47,24 @@ function GM:GUIMousePressed( mouseCode, aimVector )
 			net.SendToServer( )
 			dermaMenu:Remove( )
 		end ):SetIcon( "icon16/transmit_delete.png" )
+	elseif ( !IsValid( traceEnt ) and mouseCode == MOUSE_RIGHT ) then
+		dermaMenu = DermaMenu( )
+		dermaMenu:SetPos( gui.MousePos( ) )
+		dermaMenu:AddOption( "Finish Round", function( )
+			RunConsoleCommand( "gmatch_finishround" )
+		end ):SetIcon( "icon16/anchor.png" )
+		dermaMenu:AddOption( "Start Gamemode Vote", function( )
+			RunConsoleCommand( "gmatch_gamemodevote" )
+		end ):SetIcon( "icon16/gun.png" )
+		dermaMenu:AddOption( "Start Map Vote", function( )
+			RunConsoleCommand( "gmatch_mapvote" )
+		end ):SetIcon( "icon16/map.png" )
+		dermaMenu:AddSpacer( )
+		dermaMenu:AddOption( "Respawn Players", function( )
+			RunConsoleCommand( "gmatch_respawnplayers" )
+		end ):SetIcon( "icon16/user_add.png" )
+		dermaMenu:AddOption( "Save Player Stats", function( )
+			RunConsoleCommand( "gmatch_saveplayerstats" )
+		end ):SetIcon( "icon16/shield_go.png" )
 	end
 end

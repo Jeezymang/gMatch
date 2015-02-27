@@ -216,6 +216,9 @@ net.Receive( "GMatch:ManipulateMisc", function( len )
 				LocalPlayer( ):ChatPrint( "Unable to play URL." )
 			end
 		end )
+	elseif ( opType == NET_MISC_PLAYSOUND ) then
+		local soundPath = net.ReadString( )
+		surface.PlaySound( soundPath )
 	end
 end )
 
