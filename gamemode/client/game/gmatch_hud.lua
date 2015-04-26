@@ -114,7 +114,9 @@ local function DrawHealthIndicator( )
 		draw.TexturedRect( healthStartPosX + 7.5 + ( i * 32 ), healthStartPosY - ( sizeWave * 4 ), 32 + sizeWave, 32, heartMat, Color( 255, 255, 255 ) )
 		draw.HorizontalCutTexturedRect( healthStartPosX + 7.5 + ( i * 32 ), healthStartPosY - ( sizeWave * 4 ), 32, 32 + sizeWave, heartMat, Color( 175, 45, 45 ), heartPercent )
 	end
-	DrawAmmoIndicator( pnlX, pnlY )
+	if not ( GMatch.Config.NoDrawAmmo ) then
+		DrawAmmoIndicator( pnlX, pnlY )
+	end
 	DrawArmorIndicator( pnlX, pnlY )
 end
 
@@ -237,12 +239,18 @@ end
 
 hook.Add( "HUDPaint", "GMatch:HUDPaint", function( )
 	DrawNotifications( )
-	DrawHealthIndicator( )
+	if not ( GMatch.Config.NoDrawHealth ) then
+		DrawHealthIndicator( )
+	end
 	DrawGameSwitchTime( )
 	DrawMapSwitchTime( )
-	DrawRespawnTimer( )
+	if not ( GMatch.Config.NoDrawRespawnTime ) then
+		DrawRespawnTimer( )
+	end
 	DrawCenterScreenMessages( )
-	DrawNETDataTimer( )
+	if not ( GMatch.Config.NoDrawDataTime ) then
+		DrawNETDataTimer( )
+	end
 	local showTimer = GMatch.GameData.TimerToggled or false
 	local timerLength = GMatch.GameData.TimerLength or 0
 	if not ( showTimer ) then return end
